@@ -1,21 +1,14 @@
 #include <Arduino.h>
-#include <TinyWireM.h>
+#include <U8x8lib.h>
 
-#define TINY4KOLED_QUICK_BEGIN
+constexpr byte therms[] = {A3, A2};
+constexpr byte button   = 1;
 
-#include <Tiny4kOLED.h>
-
-// SDA
-// SCL
-// Analog 1
-// Analog 2
-// 3 position
-
-//TODO: Tiny4kOLED
+U8X8_SSD1306_128X32_UNIVISION_SW_I2C oled(SCL, SDA);
 
 
-//              ┌───────────┐
-//          NC -│RST     VCC│- 5V
+//              ┌─────u─────┐
+//          NC -│RST     VCC│- 3.3V
 //              │           │
 //     Therm 1 -│PB3     SCL│- OLED
 //              │           │
@@ -25,64 +18,52 @@
 //              └───────────┘
 
 
-void displayTemps(byte (&temps)[2]) {
-    static bool flip = 0;
+void displayTemps(int (&temps)[2]) {
 
-    oled.setCursor(0,2);
-    oled.print(flip);
-    oled.print(" ");
-    oled.print(temps[flip]);
-    oled.display();
+    oled.setCursor(0,1);
+    if(temps[0] <  10) {oled.print(" ");}
+    if(temps[0] < 100) {oled.print(" ");}
+    oled.print(temps[0]);
 
-    flip = !flip;
+    oled.setCursor(7,1);
+    oled.print(":");
+
+    oled.setCursor(8,1);
+    if(temps[1] <  10) {oled.print(" ");}
+    if(temps[1] < 100) {oled.print(" ");}
+    oled.print(temps[1]);
+
 }
 
-void readTemps(byte (&temps)[2], byte count) {
-    long temp0 = 0;
-    long temp1 = 0;
+void readTemps(int (&temps)[2], byte count) {
 
-    analogRead(A3);
-    delay(5);
-    for(byte i=0; i<count; i++) {
-        temp0 += analogRead(A3);
-    }
-    temp0 *= 5000;
-    temp0 /= count;
-    temp0 /= 1023;
-    temp0 -= 1250;
-    temps[0] = temp0 / 5;
+    for(byte i=0; i<2; i++) {
+        temps[i] = 0;
+        analogRead(therms[i]);
+        delay(5);
 
-    analogRead(A2);
-    delay(5);
-    for(byte i=0; i<count; i++) {
-        temp1 += analogRead(A2);
+        for(byte n=0; n<count; n++) {
+            temps[i] += analogRead(therms[i]);
+        }
+        temps[i] /= count;
+        temps[i] *= 20;
+        temps[i] /= 31;
+        temps[i] -= 250;
+        temps[i] = constrain(temps[i], 0, 999);
     }
-    temp1 *= 5000;
-    temp1 /= count;
-    temp1 /= 1023;
-    temp1 -= 1250;
-    temps[1] = temp1 / 5;
 }
 
 void setup() {
-
     oled.begin();
-    oled.setFont(FONT8X16);
-    oled.clear();
-    oled.on();
-    
-
-    oled.clearDisplay();
-    oled.setCursor(0,0);
-    oled.setTextColor(SSD1306_WHITE, SSD1306_BLACK);
-    oled.setTextSize(4);
-
+    oled.setFont(u8x8_font_px437wyse700a_2x2_n);
+    oled.setFlipMode(true);
 }
+
 
 void loop() {
     constexpr int readPeriod = 5000;
     static long lastRead = millis() - readPeriod;
-    static byte temps[2];
+    static int temps[2];
 
     if(millis() - lastRead >= readPeriod) {
         readTemps(temps, 20);
